@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Finding Potholes Under Floodwater</title>
+<style>
+:root{--bg:#f1e6d3;--paper:#faf3e6;--ink:#3a2a1d;--mut:#7a6552;--line:#d9c7aa;--clay:#a8532b;--ochre:#d49a2f;--road:#6e5340;--flood:#a9936a;--ok:#4f7a3a;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#241a13;--paper:#2e2218;--ink:#f0e2cc;--mut:#b49c80;--line:#4a3828;--clay:#e0834f;--ochre:#e3b04f;--road:#8a6a52;--flood:#6e5f43;--ok:#8fbf6b}}
+:root[data-theme="dark"]{--bg:#241a13;--paper:#2e2218;--ink:#f0e2cc;--mut:#b49c80;--line:#4a3828;--clay:#e0834f;--ochre:#e3b04f;--road:#8a6a52;--flood:#6e5f43;--ok:#8fbf6b}
+*{box-sizing:border-box}html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Georgia,"Times New Roman",serif}
+.wrap{max-width:860px;margin:0 auto;padding:24px 16px 56px}
+h1{font-size:clamp(1.6rem,5vw,2.4rem);line-height:1.2;margin:.1em 0 .2em}
+h2{font-size:1.25rem;margin:2em 0 .4em}
+.sub{color:var(--mut);margin:0}
+.lead{font-size:1.08rem;margin:1.2em 0}
+.stage{background:var(--paper);border:2px solid var(--line);border-radius:12px;padding:10px;margin-top:12px}
+svg{width:100%;height:auto;display:block}
+[data-d]{touch-action:none;cursor:grab}
+.read{display:flex;gap:14px;align-items:center;margin:10px 4px 4px;flex-wrap:wrap}
+#msg{flex:1 1 260px;font-size:1.1rem;font-weight:bold;border-left:6px solid var(--ok);padding:4px 12px}
+#nums{font:14px ui-monospace,Menlo,Consolas,monospace;color:var(--mut)}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 0}
+button{font:inherit;font-size:.9rem;background:var(--paper);color:var(--ink);border:2px solid var(--ink);border-radius:8px;padding:6px 12px;cursor:pointer}
+button.on{background:var(--clay);border-color:var(--clay);color:#fff}
+button:active{transform:translateY(1px)}
+details{margin-top:12px}summary{cursor:pointer;color:var(--mut)}
+.set{display:grid;gap:8px;margin-top:8px;max-width:420px}
+label{font-size:.9rem}label output{float:right}input[type=range]{width:100%;accent-color:var(--clay)}
+.hint{font-size:.9rem;color:var(--mut);margin:8px 4px 0}
+ol.steps{padding:0;list-style:none;counter-reset:s;display:grid;gap:10px}
+ol.steps li{counter-increment:s;padding-left:46px;position:relative}
+ol.steps li:before{content:counter(s);position:absolute;left:0;top:0;width:34px;height:34px;border-radius:50%;background:var(--clay);color:#fff;text-align:center;line-height:34px;font-weight:bold}
+table{width:100%;border-collapse:collapse;font-size:.95rem;margin-top:8px}
+td{padding:5px 4px;border-bottom:1px dashed var(--line)}td:last-child{text-align:right}
+ul{padding-left:1.2em}li{margin:4px 0}
+footer{margin-top:36px;color:var(--mut);font-size:.85rem}
+</style>
+</head>
+<body>
+<div class="wrap">
+<p class="sub">Mini project · Disaster Risk Reduction and Management</p>
+<h1>Finding potholes you can’t see under floodwater</h1>
+<p class="sub">Prabhu SJ · Ponkarthi R · Puvi Raj B — Mechanical Engineering, Anna University Regional Campus, Coimbatore</p>
+
+<p class="lead">After a flood, muddy water hides holes in the road. Our idea: lower a waterproof ultrasonic probe into the water and listen for the echo off the road. If the echo takes longer than on flat road, the surface below has dropped. An ESP32 reads the probe and checks the readings using the vehicle speed.</p>
+
+<h2>Try it yourself</h2>
+<p class="hint" style="margin-top:0">Drag the <b>probe</b> along the road. Drag the <b>round handle</b> in the pothole to dig it deeper or move it. Use <b>Sweep for me</b> to simulate the probe moving with the vehicle.</p>
+
+<div class="stage">
+<svg id="scene" viewBox="0 0 700 320" role="img" aria-label="Flooded road cross-section with a draggable probe and pothole"></svg>
+<div class="read"><div id="msg">Road looks level here.</div><div id="nums">—</div></div>
+</div>
+
+<div class="btns">
+<button id="flood" class="on">Flood: on</button>
+<button id="sweep">Sweep for me</button>
+<button id="block">Block the echo</button>
+<button id="hide">Hide a pothole</button>
+<button id="clear">Clear trail</button>
+</div>
+
+<details open><summary>Tune the checker and vehicle motion</summary>
+<div class="set">
+<label>How much deeper counts as a dip? <output id="ot">30 mm</output><input id="thr" type="range" min="10" max="100" step="5" value="30"></label>
+<label>Readings in a row before warning <output id="on">3</output><input id="per" type="range" min="1" max="6" value="3"></label>
+<label>Vehicle speed from speedometer <output id="ov">20 km/h</output><input id="spd" type="range" min="0" max="60" step="5" value="20"></label>
+<label>Time between ultrasonic pings <output id="opi">200 ms</output><input id="pit" type="range" min="100" max="1000" step="50" value="200"></label>
+</div>
+<p class="hint">The speedometer feed converts time-based readings into distance-based readings: <b>distance travelled between pings = speed × ping interval</b>. At high speed, readings are spaced farther apart and a narrow pothole can be missed.</p>
+</details>
+
+<h2>What the probe has found so far</h2>
+<div class="stage"><svg id="chart" viewBox="0 0 700 150" role="img" aria-label="Trail of readings along the road"></svg></div>
+<p class="hint">Each dot is one reading as the probe moves along. Dots above the dashed line mean “deeper than flat road”. Blocked echoes leave a gap, not a zero.</p>
+
+<h2>How it works</h2>
+<ol class="steps">
+<li><b>Send a ping.</b> The waterproof ultrasonic probe sends a sound pulse through the floodwater and waits for the echo from the road.</li>
+<li><b>Read vehicle speed.</b> The ESP32 receives speed from the speedometer/OBD-II interface, GPS, or a wheel-speed sensor.</li>
+<li><b>Convert time to distance.</b> For every ping, the system calculates how far the vehicle moved since the previous reading.</li>
+<li><b>Compare with flat road.</b> A flat reference reading is taken first. Later readings are compared with it to estimate the change in road level.</li>
+<li><b>Reject bad data.</b> Missing echoes, sudden impossible jumps, and excessive motion error are treated as faults—not as zero depth.</li>
+<li><b>Confirm before warning.</b> Several deeper readings in a row are required, so one noisy echo does not trigger an alert.</li>
+<li><b>Show the result.</b> Distance, speed, sampling gap and status appear on the Serial Monitor, with an optional LED or buzzer.</li>
+</ol>
+
+<details><summary>Parts and budget (about ₹4,500)</summary>
+<table id="bud"></table>
+<p class="hint">Only the sensor price is a listed figure; the rest are planning allowances.</p>
+</details>
+
+<h2>What it can’t do (yet)</h2>
+<ul>
+<li>One reading gives the distance to whatever reflected the echo; it does not automatically give the pothole’s true depth.</li>
+<li>It needs a rigid mount and a known probe height. Probe movement can look like road movement.</li>
+<li>Side walls, debris, mud and bubbles can reflect the echo early.</li>
+<li>At high vehicle speed, the distance between pings may become larger than the pothole width, causing missed detections.</li>
+<li>One beam cannot map the full road width, and this remains an untested lab-scale prototype—not a certified warning system.</li>
+</ul>
+
+<footer>Simulation for illustration · figures from our project report</footer>
+</div>
+
+<script>
+var $=function(i){return document.getElementById(i)};
+
+var S={
+  pos:15,c:50,depth:8,T:30,N:3,
+  noise:true,block:false,flood:true,hidden:false,
+  cnt:0,auto:false,scan:{},
+  speed:20,   // km/h, from speedometer feed
+  ping:200    // ms between ultrasonic pings
+};
+
+var BASE=170,K=5,WATER=70;
+
+function X(c){return 30+c*6.4}
+
+function prof(x){
+  var d=Math.abs(x-S.c);
+  if(d>10)return 0;
+  return S.depth*Math.min(1,(10-d)/2);
+}
+
+function css(v){return 'var(--'+v+')'}
+
+function travelPerPingCm(){
+  return (S.speed/3.6)*(S.ping/1000);
+}
+
+function scene(){
+  var px=X(S.pos),hit=BASE+prof(S.pos)*K;
+  var pts='30,'+BASE,real=!S.hidden;
+
+  for(var x=0;x<=100;x++){
+    pts+=' '+X(x)+','+(BASE+(real?prof(x)*K:0));
+  }
+  pts+=' 670,'+BASE+' 670,320 30,320';
+
+  var h='';
+
+  if(S.flood){
+    h+='<rect x="30" y="'+WATER+'" width="640" height="250" fill="'+css('flood')+'" opacity=".85"/>';
+    h+='<text x="38" y="'+(WATER-8)+'" font-size="13" fill="'+css('mut')+'">muddy floodwater</text>';
+  }
+
+  h+='<polygon points="'+pts+'" fill="'+css('road')+'"/>';
+
+  if(S.flood){
+    h+='<rect x="30" y="'+BASE+'" width="640" height="150" fill="'+css('flood')+'" opacity=".35"/>';
+  }
+
+  h+='<line x1="30" y1="'+BASE+'" x2="670" y2="'+BASE+'" stroke="'+css('ink')+'" stroke-dasharray="3 5" opacity=".45"/>';
+  h+='<text x="38" y="'+(BASE-6)+'" font-size="12" fill="'+css('ink')+'">flat road level</text>';
+
+  h+='<line x1="'+px+'" y1="10" x2="'+px+'" y2="118" stroke="'+css('mut')+'" stroke-width="3"/>';
+
+  if(!S.block){
+    h+='<polygon points="'+(px-6)+',136 '+(px+6)+',136 '+px+','+hit+'" fill="'+css('clay')+'" opacity=".3"/>';
+    h+='<line x1="'+px+'" y1="136" x2="'+px+'" y2="'+hit+'" stroke="'+css('clay')+'" stroke-width="2" stroke-dasharray="5 4"/>';
+    h+='<circle cx="'+px+'" cy="'+hit+'" r="4.5" fill="'+css('clay')+'"/>';
+  }else{
+    h+='<text x="'+(px+16)+'" y="160" font-size="14" font-weight="bold" fill="'+css('clay')+'">no echo</text>';
+  }
+
+  h+='<rect x="'+(px-15)+'" y="118" width="30" height="18" rx="4" fill="'+css('ink')+'"/>';
+  h+='<text x="'+(px+22)+'" y="130" font-size="12" fill="'+css('ink')+'">probe</text>';
+  h+='<circle data-d="probe" cx="'+px+'" cy="127" r="26" fill="transparent"/>';
+
+  if(!S.hidden){
+    var hy=BASE+S.depth*K+(S.depth<1?10:0);
+    h+='<circle cx="'+X(S.c)+'" cy="'+hy+'" r="9" fill="'+css('ochre')+'" stroke="'+css('ink')+'" stroke-width="2"/>';
+    h+='<circle data-d="dig" cx="'+X(S.c)+'" cy="'+hy+'" r="26" fill="transparent"/>';
+  }
+
+  h+='<rect x="440" y="12" width="226" height="64" rx="8" fill="'+css('paper')+'" stroke="'+css('line')+'" stroke-width="2"/>';
+  h+='<text x="450" y="30" font-size="12" fill="'+css('mut')+'">what a driver sees:</text>';
+  h+='<text x="450" y="48" font-size="14" font-weight="bold" fill="'+css('ink')+'">'+(S.flood?'just muddy water':'a pothole in the road')+'</text>';
+  h+='<text x="450" y="66" font-size="12" fill="'+css('mut')+'">speed: '+S.speed+' km/h · ping: '+S.ping+' ms</text>';
+
+  if(S.hidden){
+    h+='<text x="38" y="'+(BASE+60)+'" font-size="14" fill="#fff">There’s a hidden pothole somewhere. Find it with the probe.</text>';
+  }
+
+  $('scene').innerHTML=h;
+}
+
+function chart(){
+  var W=700,H=150,l=40,r=14,t=10,b=24,mn=-20,mx=170;
+
+  function cx(p){return l+p/100*(W-l-r)}
+  function cy(v){return t+(mx-v)/(mx-mn)*(H-t-b)}
+
+  var h='<line x1="'+l+'" y1="'+cy(0)+'" x2="'+(W-r)+'" y2="'+cy(0)+'" stroke="'+css('line')+'" stroke-width="2"/>';
+
+  [0,100].forEach(function(v){
+    h+='<text x="4" y="'+(cy(v)+4)+'" font-size="11" fill="'+css('mut')+'">'+v+'</text>';
+  });
+
+  [0,50,100].forEach(function(p){
+    h+='<text x="'+(cx(p)-6)+'" y="'+(H-6)+'" font-size="11" fill="'+css('mut')+'">'+p+' cm</text>';
+  });
+
+  h+='<line x1="'+l+'" y1="'+cy(S.T)+'" x2="'+(W-r)+'" y2="'+cy(S.T)+'" stroke="'+css('ochre')+'" stroke-width="2" stroke-dasharray="6 4"/>';
+
+  for(var k in S.scan){
+    var v=S.scan[k];
+    h+='<circle cx="'+cx(+k)+'" cy="'+cy(v)+'" r="4" fill="'+css(v>S.T?'clay':'ok')+'"/>';
+  }
+
+  $('chart').innerHTML=h;
+}
+
+function tick(){
+  var m=$('msg'),col='ok',txt='Road looks level here.',nums='';
+  var stepCm=travelPerPingCm();
+
+  if(S.auto){
+    S.pos+=stepCm;
+    if(S.pos>100)S.pos=0;
+  }
+
+  if(S.block){
+    S.cnt=0;
+    txt='No echo came back. We can’t say anything here, and that is not “zero depth”.';
+    col='ochre';
+    nums='d = — · travel/ping = '+stepCm.toFixed(1)+' cm';
+  }else{
+    var n=S.noise?(Math.random()*6-3):0;
+    var motionErr=S.speed*0.15;
+    var dd=prof(S.pos)*10+n+(S.speed>0?(Math.random()*2-1)*motionErr:0);
+
+    S.scan[Math.round(S.pos)]=dd;
+
+    nums='d = '+(500+dd).toFixed(0)+' mm'
+        +' · change = '+(dd>=0?'+':'')+dd.toFixed(0)+' mm'
+        +' · travel/ping = '+stepCm.toFixed(1)+' cm'
+        +' · motion error ≈ ±'+motionErr.toFixed(0)+' mm';
+
+    if(stepCm>20){
+      txt='Sampling too far apart: a 20 cm pothole may be missed.';
+      col='ochre';
+      S.cnt=0;
+    }else{
+      if(dd>S.T)S.cnt++;else S.cnt=0;
+
+      if(S.cnt>=S.N){
+        txt='Dip under the water. Take care here.';
+        col='clay';
+      }else if(S.cnt>0){
+        txt='Deeper than flat road… checking it’s not a blip.';
+        col='ochre';
+      }
+    }
+  }
+
+  m.textContent=txt;
+  m.style.borderColor=css(col);
+  $('nums').textContent=nums;
+
+  scene();
+  chart();
+}
+
+var sv=$('scene'),drag=null;
+
+function pt(e){
+  var p=sv.createSVGPoint();
+  p.x=e.clientX;p.y=e.clientY;
+  return p.matrixTransform(sv.getScreenCTM().inverse());
+}
+
+sv.addEventListener('pointerdown',function(e){
+  var t=e.target.closest('[data-d]');
+  if(!t)return;
+  drag=t.getAttribute('data-d');
+  S.auto=false;
+  $('sweep').classList.remove('on');
+  sv.setPointerCapture(e.pointerId);
+  e.preventDefault();
+});
+
+sv.addEventListener('pointermove',function(e){
+  if(!drag)return;
+  var p=pt(e);
+
+  if(drag==='probe'){
+    S.pos=Math.max(0,Math.min(100,(p.x-30)/6.4));
+  }else{
+    S.c=Math.max(15,Math.min(85,(p.x-30)/6.4));
+    S.depth=Math.max(0,Math.min(15,(p.y-BASE)/K));
+    S.scan={};
+  }
+
+  S.cnt=0;
+  scene();
+});
+
+sv.addEventListener('pointerup',function(){drag=null});
+sv.addEventListener('pointercancel',function(){drag=null});
+
+function tog(id,key,on,off){
+  $(id).onclick=function(){
+    S[key]=!S[key];
+    this.classList.toggle('on',S[key]);
+    this.textContent=S[key]?on:off;
+  };
+}
+
+tog('flood','flood','Flood: on','Flood: off');
+
+$('sweep').onclick=function(){
+  S.auto=!S.auto;
+  this.classList.toggle('on',S.auto);
+  this.textContent=S.auto?'Stop sweeping':'Sweep for me';
+};
+
+$('block').onclick=function(){
+  S.block=!S.block;
+  this.classList.toggle('on',S.block);
+  this.textContent=S.block?'Unblock the echo':'Block the echo';
+};
+
+$('hide').onclick=function(){
+  if(S.hidden){
+    S.hidden=false;
+    this.textContent='Hide a pothole';
+    this.classList.remove('on');
+    return;
+  }
+
+  S.hidden=true;
+  S.flood=true;
+  $('flood').classList.add('on');
+  $('flood').textContent='Flood: on';
+
+  S.c=20+Math.round(Math.random()*60);
+  S.depth=5+Math.round(Math.random()*8);
+  S.scan={};
+  S.cnt=0;
+  S.pos=2;
+
+  this.textContent='Reveal it';
+  this.classList.add('on');
+};
+
+$('clear').onclick=function(){
+  S.scan={};
+  S.cnt=0;
+};
+
+$('thr').oninput=function(e){
+  S.T=+e.target.value;
+  $('ot').textContent=S.T+' mm';
+  S.scan={};
+  S.cnt=0;
+};
+
+$('per').oninput=function(e){
+  S.N=+e.target.value;
+  $('on').textContent=S.N;
+  S.cnt=0;
+};
+
+$('spd').oninput=function(e){
+  S.speed=+e.target.value;
+  $('ov').textContent=S.speed+' km/h';
+};
+
+$('pit').oninput=function(e){
+  S.ping=+e.target.value;
+  $('opi').textContent=S.ping+' ms';
+};
+
+var items=[
+  ['Underwater ultrasonic sensor (DYP-L081MTW-V3.0)',2590.10],
+  ['ESP32 DevKit V1',400],
+  ['Dry enclosure and cable sealing',300],
+  ['Regulated sensor supply',250],
+  ['Protected UART interface parts',150],
+  ['Perfboard, wires, connectors',150],
+  ['Rigid mounting hardware',150],
+  ['USB cable',100],
+  ['Optional LED / buzzer set',60],
+  ['Shipping / contingency',349.90]
+];
+
+$('bud').innerHTML=items.map(function(i){
+  return '<tr><td>'+i[0]+'</td><td>₹'+i[1].toLocaleString('en-IN',{minimumFractionDigits:2})+'</td></tr>';
+}).join('')
++'<tr><td><b>Total</b></td><td><b>₹4,500.00</b></td></tr>';
+
+setInterval(tick,200);
+tick();
+</script>
+</body>
+</html>
